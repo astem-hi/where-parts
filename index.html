@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>部品棚マップ＆位置検索システム</title>
+  <style>
+    :root {
+      --bg-color: #f4f6f9;
+      --card-bg: #ffffff;
+      --accent-color: #007bff;
+      --highlight-color: #ff3b30;
+      --border-color: #dcdfe6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      margin: 0;
+      padding: 12px;
+      color: #333;
+    }
+
+    h1 {
+      font-size: 1.3rem;
+      text-align: center;
+      margin: 8px 0 16px 0;
+      color: #111;
+    }
+
+    /* 検索セクション */
+    .search-container {
+      max-width: 1000px;
+      margin: 0 auto 12px auto;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: var(--bg-color);
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 8px;
+    }
+
+    .search-box input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 1rem;
+      border: 2px solid var(--accent-color);
+      border-radius: 8px;
+      outline: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .status-bar {
+      text-align: center;
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    /* メインレイアウト */
+    .main-layout {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 16px;
+    }
+
+    /* スマホ画面向けのレスポンシブ調整 */
+    @media (max-width: 850px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* パネル共通 */
+    .panel {
+      background: var(--card-bg);
+      padding: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .section-header {
+      font-weight: bold;
+      font-size: 1rem;
+      color: #212529;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* 各棚エリアの設定 */
+    .shelf-group {
+      margin-bottom: 20px;
+      background: #fafafa;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .shelf-group-title {
+      font-weight: bold;
+      font-size: 0.95rem;
+      color: #495057;
+      margin-bottom: 8px;
+    }
+
+    /* 棚A: 大型コンテナ（2段×4列） */
+    .grid-shelf-a {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    /* 棚B: 赤いミニパーツボックス（6段×5列） */
+    .grid-shelf-b {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+    }
+
+    /* 棚C: 青いボックス（下段エリア） */
+    .grid-shelf-c-top {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+      margin-bottom: 6px;
+    }
+
+    .grid-shelf-c-bottom {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    /* 棚・マス目の共通スタイル */
+    .cell {
+      background-color: #ffffff;
+      border: 1.5px solid #adb5bd;
+      border-radius: 6px;
+      min-height: 44px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: bold;
+      color: #333;
+      text-align: center;
+      padding: 2px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+
+    .cell:hover {
+      background-color: #e9ecef;
+    }
+
+    /* 大型コンテナ用の高さ調整 */
+    .grid-shelf-a .cell {
+      min-height: 55px;
+    }
+
+    /* 点滅ハイライトスタイル */
+    .cell.active {
+      background-color: var(--highlight-color) !important;
+      color: #ffffff !important;
+      border-color: #b00020;
+      animation: blink 0.7s infinite alternate;
+      z-index: 10;
+      box-shadow: 0 0 12px rgba(255, 59, 48, 0.9);
+      font-size: 0.85rem;
+    }
+
+    @keyframes blink {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0.5; transform: scale(1.03); }
+    }
+
+    /* リスト表示領域 */
+    .parts-panel {
+      max-height: 650px;
+      overflow-y: auto;
+    }
+
+    .part-item {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      transition: background 0.15s;
+      background-color: #fff;
+      border: 1px solid #edf2f7;
+    }
+
+    .part-item:hover {
+      background-color: #e7f3ff;
+      border-color: #b6d4fe;
+    }
+
+    .part-item .name {
+      font-weight: bold;
+      font-size: 0.95rem;
+      color: #1a1a1a;
+    }
+
+    .part-item .details {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .part-item .badge {
+      background: #e9ecef;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      color: #495057;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🔧 メンテナンス部品棚 検索マップ</h1>
+
+  <div class="search-container">
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 部品名や棚番号を入力 (例: ベアリング, A-1-1)" oninput="handleSearch()">
+    </div>
+    <div class="status-bar" id="statusBar">データを読み込み中...</div>
+  </div>
+
+  <div class="main-layout">
+    
+    <!-- マップ表示エリア -->
+    <div class="panel">
+      <div class="section-header">
+        <span>📍 棚レイアウトマップ</span>
+      </div>
+
+      <!-- 棚 A: 大型コンテナラック -->
+      <div class="shelf-group">
+        <div class="shelf-group-title">【棚 A】大型折りたたみコンテナラック (2段)</div>
+        <div class="grid-shelf-a" id="shelfA"></div>
+      </div>
+
+      <!-- 棚 B: 赤パーツボックス (6段) -->
+      <div class="shelf-group">
+        <div class="shelf-group-title">【棚 B】右側・赤パーツボックス (6段 × 5列)</div>
+        <div class="grid-shelf-b" id="shelfB"></div>
+      </div>
+
+      <!-- 棚 C: 左下・青パーツボックス -->
+      <div class="shelf-group">
+        <div class="shelf-group-title">【棚 C】左下・青プラスチックボックス</div>
+        <div class="grid-shelf-c-top" id="shelfCTop"></div>
+        <div class="grid-shelf-c-bottom" id="shelfCBottom"></div>
+      </div>
+
+    </div>
+
+    <!-- 部品リスト表示エリア -->
+    <div class="panel parts-panel">
+      <div class="section-header">
+        <span>📦 部品一覧</span>
+        <span id="partCount" style="font-size: 0.8rem; color: #666;">0件</span>
+      </div>
+      <div id="partsList">読み込み中...</div>
+    </div>
+
+  </div>
+
+  <script>
+    // ⚠️ ご自身のGoogleスプレッドシート「ウェブに公開(CSV)」URLを貼り付けてください
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTZBil7WV29KK3LkYyaU1L-EuMd7gG8Tbiginv6znb8urzeVbBAUjMg7JDLZMuX_qnRZ8Z2zD3c2Xqw/pub?gid=0&single=true&output=csv";
+
+    // テスト用のサンプルデータ (スプレッドシート未接続時に表示)
+    const defaultData = [
+      { id: '1', name: '大型コンテナ用パーツA', location: 'A-1-1', stock: '5' },
+      { id: '2', name: '予備フィルターユニット', location: 'A-2-3', stock: '2' },
+      { id: '3', name: '小ネジ M3×8', location: 'B-1-1', stock: '100' },
+      { id: '4', name: '配線端子セット', location: 'B-3-5', stock: '24' },
+      { id: '5', name: '最下段スペーサー', location: 'B-6-2', stock: '12' },
+      { id: '6', name: '圧着工具・ワイヤー', location: 'C-1-1', stock: '3' },
+      { id: '7', name: '青ケース用大型部材', location: 'C-2-1', stock: '8' }
+    ];
+
+    let partsData = [];
+
+    // 棚グリッドの生成
+    function createMapGrid() {
+      // 1. 棚 A (2段×4列)
+      const shelfA = document.getElementById('shelfA');
+      shelfA.innerHTML = '';
+      for (let r = 1; r <= 2; r++) {
+        for (let c = 1; c <= 4; c++) {
+          const id = `A-${r}-${c}`;
+          shelfA.appendChild(createCell(id, id));
+        }
+      }
+
+      // 2. 棚 B (6段×5列)
+      const shelfB = document.getElementById('shelfB');
+      shelfB.innerHTML = '';
+      for (let r = 1; r <= 6; r++) {
+        for (let c = 1; c <= 5; c++) {
+          const id = `B-${r}-${c}`;
+          shelfB.appendChild(createCell(id, id));
+        }
+      }
+
+      // 3. 棚 C (上段1個、下段2個)
+      const shelfCTop = document.getElementById('shelfCTop');
+      const shelfCBottom = document.getElementById('shelfCBottom');
+      shelfCTop.innerHTML = '';
+      shelfCBottom.innerHTML = '';
+
+      shelfCTop.appendChild(createCell('C-1-1', 'C-1-1'));
+      shelfCBottom.appendChild(createCell('C-2-1', 'C-2-1'));
+      shelfCBottom.appendChild(createCell('C-2-2', 'C-2-2'));
+    }
+
+    // マス目セル要素を作成
+    function createCell(id, text) {
+      const div = document.createElement('div');
+      div.className = 'cell';
+      div.id = id;
+      div.innerText = text;
+      div.onclick = () => filterByLocation(id);
+      return div;
+    }
+
+    // スプレッドシートからデータ取得
+    async function fetchSheetData() {
+      const statusBar = document.getElementById('statusBar');
+
+      if (!SHEET_CSV_URL || SHEET_CSV_URL.includes("YOUR_SHEET_ID_HERE")) {
+        statusBar.innerText = "ℹ️ スプレッドシート未設定のためサンプルデータを表示中";
+        partsData = defaultData;
+        renderPartsList(partsData);
+        return;
+      }
+
+      try {
+        const response = await fetch(SHEET_CSV_URL);
+        if (!response.ok) throw new Error("HTTP Error " + response.status);
+        const csvText = await response.text();
+
+        partsData = parseCSV(csvText);
+        statusBar.innerText = `✅ データ更新完了 (全 ${partsData.length} 件)`;
+        renderPartsList(partsData);
+      } catch (error) {
+        console.error("データ取得失敗:", error);
+        statusBar.innerText = "⚠️ スプレッドシート読み込み失敗（サンプルデータを表示中）";
+        partsData = defaultData;
+        renderPartsList(partsData);
+      }
+    }
+
+    // CSVパーサー
+    function parseCSV(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length <= 1) return [];
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+      const items = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+        const entry = {};
+        headers.forEach((h, idx) => {
+          entry[h] = values[idx] || '';
+        });
+        items.push(entry);
+      }
+      return items;
+    }
+
+    // リスト描画
+    function renderPartsList(items) {
+      const listContainer = document.getElementById('partsList');
+      const countEl = document.getElementById('partCount');
+      listContainer.innerHTML = '';
+      countEl.innerText = `${items.length}件`;
+
+      if (items.length === 0) {
+        listContainer.innerHTML = '<div style="color:#999; text-align:center; padding: 20px;">該当する部品がありません</div>';
+        return;
+      }
+
+      items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'part-item';
+        div.onclick = () => highlightLocation(item.location);
+        div.innerHTML = `
+          <div class="name">${item.name || '名称未設定'}</div>
+          <div class="details">
+            <span class="badge">棚: ${item.location || '未登録'}</span>
+            <span>在庫: ${item.stock || '0'}</span>
+          </div>
+        `;
+        listContainer.appendChild(div);
+      });
+    }
+
+    // 検索機能
+    function handleSearch() {
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+      clearHighlight();
+
+      if (!keyword) {
+        renderPartsList(partsData);
+        return;
+      }
+
+      const filtered = partsData.filter(p => 
+        (p.name && p.name.toLowerCase().includes(keyword)) || 
+        (p.location && p.location.toLowerCase().includes(keyword))
+      );
+
+      renderPartsList(filtered);
+
+      // マップ上の該当位置を点滅させる
+      filtered.forEach(p => {
+        if (p.location) highlightLocation(p.location, false);
+      });
+    }
+
+    // 棚セルをクリックした際にその場所の部品だけをフィルタ
+    function filterByLocation(locationId) {
+      document.getElementById('searchInput').value = locationId;
+      handleSearch();
+    }
+
+    // 点滅ハイライト処理
+    function highlightLocation(locationId, clearOthers = true) {
+      if (clearOthers) clearHighlight();
+      if (!locationId) return;
+
+      // 英字は大文字に統一して検索
+      const formattedId = locationId.toUpperCase().trim();
+      const cell = document.getElementById(formattedId);
+      if (cell) {
+        cell.classList.add('active');
+        // スマホ表示時などに画面スクロール
+        cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function clearHighlight() {
+      document.querySelectorAll('.cell.active').forEach(el => {
+        el.classList.remove('active');
+      });
+    }
+
+    // 起動時の自動実行
+    window.addEventListener('DOMContentLoaded', () => {
+      createMapGrid();
+      fetchSheetData();
+    });
+  </script>
+</body>
+</html>
